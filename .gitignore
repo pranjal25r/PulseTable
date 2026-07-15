@@ -1,0 +1,26 @@
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Build outputs
+target/
+node_modules/
+dist/
+*.class
+*.iml
+
+# IDE metadata
+.idea/
+.vscode/
+
+# OS and editor cruft
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Local env files
+.env
+.env.*
