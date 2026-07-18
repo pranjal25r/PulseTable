@@ -15,6 +15,16 @@ const InputMonitor = () => {
   } = location.state || {};
 
   const handleGoToDashboard = () => {
+    localStorage.setItem(
+      "dashboardContext",
+      JSON.stringify({
+        streamId,
+        streamName,
+        columns,
+        aggregatedColumns,
+      })
+    );
+
     navigate("/dashboard", {
       state: {
         streamId,

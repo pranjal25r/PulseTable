@@ -9,6 +9,13 @@ const WindowResults = ({ streamId }) => {
   const [timestamp, setTimestamp] = useState(null); // ✅ new
 
   const fetchData = async () => {
+    if (!streamId) {
+      setData([]);
+      setError("No stream context found. Return to the setup flow and reopen the dashboard.");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {

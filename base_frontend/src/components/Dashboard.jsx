@@ -258,8 +258,16 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const storedDashboardState = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("dashboardContext") || "{}");
+    } catch {
+      return {};
+    }
+  })();
+
   const { streamId, streamName, columns, aggregatedColumns } =
-    location.state || {};
+    location.state || storedDashboardState || {};
 
   // Restore ingestion state on reload
   useEffect(() => {
@@ -332,6 +340,7 @@ const Dashboard = () => {
       }
 
       localStorage.removeItem("ingestionStarted");
+      localStorage.removeItem("dashboardContext");
       alert("Successfully logged out!");
       navigate("/");
     } catch (error) {

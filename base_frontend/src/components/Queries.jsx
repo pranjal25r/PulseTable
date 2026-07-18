@@ -104,7 +104,6 @@ const Queries = ({ streamId ,columns,streamName}) => {
     }
   }}
   value={selectedColumn}
-  defaultValue=""
 >
   <option value="" disabled>
     Select column

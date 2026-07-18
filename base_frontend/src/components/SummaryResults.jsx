@@ -13,7 +13,7 @@ import {
   Label,
 } from "recharts";
 
-const SummaryResults = ({ streamId, aggregatedcolumns }) => {
+const SummaryResults = ({ streamId, aggregatedcolumns = [] }) => {
   const [activeKey, setActiveKey] = useState(null);
   const [data, setData] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);

@@ -7,13 +7,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.FileReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -56,7 +57,11 @@ public class InsertionHelperService {
             Object value;
 
             if (csvValue != null && !csvValue.isEmpty()) {
-                value = convertToAppropriateType(csvValue, dataType);
+                if ("date".equalsIgnoreCase(columnName) && dataType != null && dataType.toUpperCase().contains("INT")) {
+                    value = convertDateStringToInteger(csvValue);
+                } else {
+                    value = convertToAppropriateType(csvValue, dataType);
+                }
             } else {
                 System.out.println("generating default value");
                 value = generateDefaultValue(dataType, columnName);
@@ -81,7 +86,7 @@ public class InsertionHelperService {
 
     public List<Map<String, String>> readCsvData(int streamId) throws IOException {
         List<Map<String, String>> result = new ArrayList<>();
-        String csvFilePath = getDataSourcePathById(streamId);
+        String csvFilePath = resolveCsvPath(getDataSourcePathById(streamId));
 
         if (csvFilePath == null || csvFilePath.isEmpty()) {
             throw new IOException("No data source path found for stream ID: " + streamId);
@@ -100,6 +105,28 @@ public class InsertionHelperService {
         }
 
         return result;
+    }
+
+    private String resolveCsvPath(String configuredPath) throws IOException {
+        if (configuredPath == null || configuredPath.isBlank()) {
+            return configuredPath;
+        }
+
+        File path = new File(configuredPath);
+        if (path.isFile()) {
+            return path.getAbsolutePath();
+        }
+
+        if (path.isDirectory()) {
+            File[] csvFiles = path.listFiles(file -> file.isFile() && file.getName().toLowerCase().endsWith(".csv"));
+            if (csvFiles != null && csvFiles.length > 0) {
+                return csvFiles[0].getAbsolutePath();
+            }
+
+            throw new IOException("No CSV file found in directory: " + configuredPath);
+        }
+
+        return configuredPath;
     }
 
     //here all one batch will be pre-processed and will be sent to summary table
@@ -233,6 +260,21 @@ public class InsertionHelperService {
             }
         } catch (NumberFormatException | ParseException e) {
             return value;
+        }
+    }
+
+    private Integer convertDateStringToInteger(String value) {
+        try {
+            String trimmed = value.trim();
+            if (trimmed.length() >= 10) {
+                String datePart = trimmed.substring(0, 10).replace("-", "");
+                return Integer.parseInt(datePart);
+            }
+
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+            return Integer.parseInt(new SimpleDateFormat("yyyyMMdd").format(format.parse(trimmed)));
+        } catch (Exception e) {
+            return null;
         }
     }
 

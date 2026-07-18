@@ -106,8 +106,12 @@ const Step1DatabaseName = ({
             value={dataSourcePath}
             onChange={(e) => setDataSourcePath(e.target.value)}
             className="form-control"
-            placeholder="Enter data source path"
+            placeholder="Enter a CSV file path or a folder containing CSV files"
           />
+          <small className="text-muted d-block mt-2">
+            You can point this to a single .csv file or to a folder that contains
+            at least one .csv file.
+          </small>
         </div>
 
         {/* <button
