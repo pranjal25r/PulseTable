@@ -1,0 +1,95 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: pulsetable-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - pulsetable-network
+
+  sdms:
+    build:
+      context: ./ingestion_backend/SDMS
+      dockerfile: Dockerfile
+    container_name: pulsetable-sdms
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/sdmsdb
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - pulsetable-network
+
+  inputmonitor:
+    build:
+      context: ./InputMonitor
+      dockerfile: Dockerfile
+    container_name: pulsetable-inputmonitor
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/sdmsdb
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - pulsetable-network
+
+  outputmonitor:
+    build:
+      context: ./outputMonitor/OutputMonitor
+      dockerfile: Dockerfile
+    container_name: pulsetable-outputmonitor
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/sdmsdb
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - pulsetable-network
+
+  frontend:
+    build:
+      context: ./base_frontend
+      dockerfile: Dockerfile
+    container_name: pulsetable-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - sdms
+      - inputmonitor
+      - outputmonitor
+    networks:
+      - pulsetable-network
+
+volumes:
+  mysql-data:
+
+networks:
+  pulsetable-network:
+    name: pulsetable-network
+    driver: bridge
