@@ -24,3 +24,7 @@ dist/
 # Local env files
 .env
 .env.*
+mysqld
+.env
+.DS_Store
+*.log
