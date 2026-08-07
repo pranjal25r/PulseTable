@@ -5,8 +5,31 @@
 ![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-informational)
 ![Vite](https://img.shields.io/badge/Vite-6.x-informational)
 ![MySQL](https://img.shields.io/badge/MySQL-8.x-informational)
+![Docker](https://img.shields.io/badge/Docker-Compose-informational)
 
-PulseTable is a microservice-based real-time stream aggregation platform built with three Spring Boot services, a React/Vite frontend, and MySQL. You define a stream schema, configure sliding-window size/velocity and an aggregation set (SUM/AVG/MIN/MAX), ingest CSV data in timed batches, and inspect the rolling window and materialized summary output from a dashboard.
+PulseTable is a microservice-based real-time stream aggregation platform built with three Spring Boot services, a React/Vite frontend, MySQL, and Docker. You define a stream schema, configure sliding-window size/velocity and an aggregation set (SUM/AVG/MIN/MAX), ingest CSV data in timed batches, and inspect the rolling window and materialized summary output from a dashboard.
+
+## Quickstart (Docker)
+
+The fastest way to run the full stack — no JDK or Node install needed:
+
+```bash
+# 1. copy the env template and set your password
+cp .env.example .env
+
+# 2. bring up all five services (MySQL + 3 Spring Boot + React/nginx)
+docker compose up --build
+```
+
+Open `http://localhost:5173`. All five containers start in dependency order — MySQL health-checks pass before the Spring services boot, so the stack comes up cleanly without manual sequencing.
+
+To stop everything:
+```bash
+docker compose down        # stops containers, keeps the MySQL volume
+docker compose down -v     # stops and deletes the volume (fresh DB)
+```
+
+> **Manual run** (without Docker) — see [Run the backend services](#run-the-backend-services) below.
 
 ## What it does
 
@@ -21,13 +44,25 @@ PulseTable is a microservice-based real-time stream aggregation platform built w
 
 | Module | Role | Port | Stack |
 |---|---|---|---|
-| `base_frontend/` | React + Vite dashboard UI | 5173 | React, Vite |
+| `base_frontend/` | React + Vite dashboard UI | 5173 | React, Vite, nginx |
 | `ingestion_backend/SDMS/` | Stream metadata + dynamic table creation | 8081 | Spring MVC |
 | `InputMonitor/` | Batch CSV ingestion worker | 8085 | Spring MVC |
 | `outputMonitor/OutputMonitor/` | Read/query APIs for dashboard views | 8083 | Spring WebFlux |
 | `Data Mocker Template/` | Optional helper scripts for mock CSV generation | — | Python |
 
-The three backend services share one MySQL database (`sdmsdb`) and coordinate by port. OutputMonitor runs on WebFlux; the other two use the standard Spring MVC stack.
+The three backend services share one MySQL database (`sdmsdb`) and coordinate by port. OutputMonitor runs on WebFlux; the other two use the standard Spring MVC stack. In the Docker setup, all services run on a shared bridge network (`pulsetable-network`) and communicate by service name.
+
+## Docker setup
+
+Each module has its own multi-stage Dockerfile:
+
+- **Spring Boot services** — Stage 1: `eclipse-temurin:21-jdk` + Maven build; Stage 2: `eclipse-temurin:21-jre` runtime. Only the fat JAR is copied into the final image, keeping it lean.
+- **Frontend** — Stage 1: `node:18-alpine` + `npm ci` + `npm run build`; Stage 2: `nginx:alpine` serves the compiled `dist/`. Maps to port 5173 on the host.
+
+`docker-compose.yml` at the repo root wires all five services with:
+- MySQL 8.4 with a named persistent volume and a `mysqladmin ping` healthcheck
+- Spring services that `depends_on` MySQL with `condition: service_healthy` — they only start once the DB is accepting connections
+- All credentials read from `.env` (never hardcoded)
 
 ## Performance & Benchmarks
 
@@ -54,36 +89,36 @@ The tight tail (p95 ≈ 2× median) and zero errors at 100 clients indicate the 
 
 Ingesting a 20,000-row CSV took **~85 s (~235 rows/s)**. This is intentionally **paced to the window clock** (10 s windows, velocity 5) — it simulates a real-time feed rather than racing to bulk-load, so it reflects *windowed streaming throughput*, not raw insert speed.
 
-## Database
-
-The application expects a local MySQL database named `sdmsdb`.
-
-The table prefixes `sdb_` and `stream_` are part of the current code and SQL flow and should be kept unless you intentionally change the data model.
-
 ## Requirements
 
-- **JDK 21** (recommended for the full stack; the Java services compile and run cleanly on 21)
-- **Maven** (a global install is simplest — see the run notes below)
-- **MySQL 8.x**
-- **Node.js 18+**
+**Docker path (recommended):**
+- Docker Desktop (or Docker Engine + Compose plugin)
 
-## Setup
+**Manual path:**
+- JDK 21 (`brew install openjdk@21`)
+- Maven (`brew install maven`)
+- MySQL 8.x (`brew install mysql`)
+- Node.js 18+ (`brew install node`)
+
+## Setup (manual path only)
+
+If running without Docker, set up the dependencies manually.
 
 ### 1. MySQL
 
-Start MySQL, set a local password, and create the database:
+```bash
+brew install mysql && brew services start mysql
+mysql -u root
+```
 
 ```sql
 ALTER USER 'root'@'localhost' IDENTIFIED BY '<your_local_password>';
 CREATE DATABASE sdmsdb;
 FLUSH PRIVILEGES;
+EXIT;
 ```
 
-Set the same password in each service's `application.properties` (`spring.datasource.password`). See the [configuration note](#configuration-note).
-
 ### 2. Java
-
-Ensure `java -version` reports 21. On macOS (Homebrew):
 
 ```bash
 brew install openjdk@21
@@ -91,9 +126,11 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
+Verify: `java -version` should report 21.
+
 ## Run the backend services
 
-Start each service in its own terminal. A global Maven install (`brew install maven`) is the simplest path, since not every module ships a complete Maven wrapper. Where `./mvnw` is present and executable you can use it instead.
+Start each service in its own terminal. Use `mvn` directly (global install via `brew install maven`) — not every module ships a complete Maven wrapper.
 
 ### Ingestion backend (8081)
 
@@ -161,12 +198,12 @@ EOF
 ## Typical flow
 
 1. Create a stream from the UI (Window Type, Size, Velocity).
-2. Add the stream columns (matching the CSV header, in order) and aggregation rules.
+2. Add stream columns (matching the CSV header, in order) and aggregation rules.
 3. Create the stream tables.
 4. Start ingestion from InputMonitor.
 5. Use the dashboard to inspect the window and summary output.
 
-**Data Source Path must point to the CSV file itself**, e.g. `.../Data Mocker Template/synthetic_aqi.csv` — not the containing folder. Pointing at a directory fails with `Failed to read CSV file ... (Is a directory)`.
+**Data Source Path must point to the CSV file itself** — e.g. `.../Data Mocker Template/synthetic_aqi.csv`, not the containing folder. Pointing at a directory fails with `Failed to read CSV file ... (Is a directory)`.
 
 ## Load testing
 
@@ -185,11 +222,9 @@ STREAM_ID=1 ./run_loadtest.sh
 - `http_reqs .../s` = throughput
 - `errors` should be ~0 for the result to count
 
-Report the highest concurrency level that holds with a stable tail and ~0 errors.
-
 ## Configuration note
 
-The Spring Boot service configs currently contain a plaintext MySQL password for local development. **Externalize it to an environment variable** before using this outside your machine, e.g. `spring.datasource.password=${DB_PASSWORD}`, and keep `application.properties` out of version control if it holds a real secret.
+The Spring Boot service configs currently contain a plaintext MySQL password for local development. **Externalize it to an environment variable** before using this outside your machine — e.g. `spring.datasource.password=${DB_PASSWORD}` — and keep `application.properties` out of version control if it holds a real secret. The Docker setup reads credentials from `.env` which is gitignored.
 
 ## Notes
 
@@ -197,3 +232,4 @@ The Spring Boot service configs currently contain a plaintext MySQL password for
 - The app assumes the CSV includes a header row.
 - OutputMonitor uses WebFlux; the other services use the standard Spring MVC stack.
 - Time-Type windowing keys off a timestamp column, so include one in your schema.
+- The Maven wrapper (`mvnw`) is incomplete in some modules — use `mvn` directly.
