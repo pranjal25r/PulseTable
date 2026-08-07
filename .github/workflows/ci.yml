@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-sdms:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ingestion_backend/SDMS
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build SDMS
+        run: mvn -q clean package -DskipTests
+
+  build-inputmonitor:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: InputMonitor
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build InputMonitor
+        run: mvn -q clean package -DskipTests
+
+  build-outputmonitor:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: outputMonitor/OutputMonitor
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build OutputMonitor
+        run: mvn -q clean package -DskipTests
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: base_frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Build frontend
+        run: npm ci && npm run build
