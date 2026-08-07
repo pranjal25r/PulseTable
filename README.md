@@ -1,5 +1,6 @@
 # PulseTable
 
+![CI](https://github.com/pranjal25r/PulseTable/actions/workflows/ci.yml/badge.svg)
 ![Java](https://img.shields.io/badge/Java-17%2F21-informational)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.x-informational)
 ![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-informational)
