@@ -67,7 +67,7 @@ Each module has its own multi-stage Dockerfile:
 
 ## Performance & Benchmarks
 
-Benchmarks were measured locally on `<your machine — e.g., MacBook Air, Apple M2, 8 GB RAM>`; results will vary by hardware. Reproduction steps are in [Load testing](#load-testing).
+Benchmarks were measured on a single local machine, with k6 and all services running on the same host; results will vary by hardware. Reproduction steps are in [Load testing](#load-testing).
 
 ### Read/aggregation latency under concurrency
 
