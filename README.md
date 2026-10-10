@@ -8,7 +8,7 @@
 ![MySQL](https://img.shields.io/badge/MySQL-8.x-informational)
 ![Docker](https://img.shields.io/badge/Docker-Compose-informational)
 
-PulseTable is a microservice-based real-time stream aggregation platform built with three Spring Boot services, a React/Vite frontend, MySQL, and Docker. You define a stream schema, configure sliding-window size/velocity and an aggregation set (SUM/AVG/MIN/MAX), ingest CSV data in timed batches, and inspect the rolling window and materialized summary output from a dashboard.
+PulseTable is a microservice-based real-time stream aggregation platform built with three Spring Boot services, a React/Vite frontend, MySQL, and Docker. You define a stream schema, configure sliding-window size/velocity and pick aggregations per column, and ingest CSV data in timed batches. PulseTable computes SUM/AVG/MIN/MAX over the current window on every tick, and the dashboard shows the rolling window and the aggregates you picked.
 
 ## Quickstart (Docker)
 
@@ -37,7 +37,8 @@ docker compose down -v     # stops and deletes the volume (fresh DB)
 - Stores stream metadata, columns, and aggregation rules in MySQL.
 - Dynamically creates per-stream tables for window rows, summary results, and ingestion bookkeeping.
 - Ingests CSV rows in timed batches and applies size-based or time-based windowing.
-- Continuously materializes windowed aggregations (SUM/AVG/MIN/MAX) to a summary store.
+- Computes SUM/AVG/MIN/MAX over the current window on every tick (after old rows are evicted) and stores one summary row per aggregated column.
+- Returns only the aggregates chosen for each column (`stream_queries.agg_function`) from the summary API.
 - Exposes REST APIs for creating streams, starting ingestion, and reading window/summary output.
 - Provides a React UI for stream setup, ingestion control, and query/view workflows.
 
@@ -206,6 +207,22 @@ EOF
 
 **Data Source Path must point to the CSV file itself** — e.g. `.../Data Mocker Template/synthetic_aqi.csv`, not the containing folder. Pointing at a directory fails with `Failed to read CSV file ... (Is a directory)`.
 
+## Window summary check
+
+`tests/window_summary_check.py` proves the summaries describe the current window rather than the whole stream. With the Docker stack running:
+
+```bash
+python3 tests/window_summary_check.py
+```
+
+It ingests a one-column CSV holding 1..20 into fresh streams and checks, through the APIs:
+
+- count-based window (size 5, velocity 2): the latest summary is SUM 90, AVG 18, MIN 16, MAX 20, and every earlier tick matches the last 5 rows ingested;
+- time-based window (5 s, velocity 2): the latest summary equals the rows actually left in the window table;
+- only the aggregates chosen for a column are returned.
+
+It needs only Python 3 and takes about 25 s. For a manual (non-Docker) run, set `CSV_CONTAINER=""`.
+
 ## Load testing
 
 Reproduce the latency benchmark with the scripts in `loadtests/`.
@@ -232,5 +249,6 @@ The Spring Boot service configs currently contain a plaintext MySQL password for
 - Keep stream and column names simple and lowercase to avoid SQL naming issues (they become table/column names).
 - The app assumes the CSV includes a header row.
 - OutputMonitor uses WebFlux; the other services use the standard Spring MVC stack.
+- Known limitation: OutputMonitor runs on WebFlux but uses blocking JDBC, so its database calls block the event-loop threads.
 - Time-Type windowing keys off a timestamp column, so include one in your schema.
 - The Maven wrapper (`mvnw`) is incomplete in some modules — use `mvn` directly.

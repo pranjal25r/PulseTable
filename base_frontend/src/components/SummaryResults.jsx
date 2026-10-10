@@ -22,13 +22,14 @@ const SummaryResults = ({ streamId, aggregatedcolumns = [] }) => {
   useEffect(() => {
     let intervalId;
 
-    const fetchData = async (colId) => {
+    const fetchData = async (colId, aggType) => {
       try {
         const response = await axios.post(
           "http://localhost:8083/api/output/columnsummary",
           {
             streamId: streamId,
             colId: colId,
+            aggFunction: aggType,
           }
         );
 
@@ -60,8 +61,8 @@ const SummaryResults = ({ streamId, aggregatedcolumns = [] }) => {
 
       if (colId) {
         setData([]); // Clear old data when switching tabs
-        fetchData(colId);
-        intervalId = setInterval(() => fetchData(colId), 5000);
+        fetchData(colId, aggType);
+        intervalId = setInterval(() => fetchData(colId, aggType), 5000);
       }
     }
 

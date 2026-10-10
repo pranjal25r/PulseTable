@@ -70,7 +70,7 @@ public class OutputStreamController {
                 return ResponseEntity.badRequest().body("Column ID is required.");
             }
 
-            List<Map<String, Object>> tableData = outputStreamService.getColumnSpecificSummaryData(streamId, colId);
+            List<Map<String, Object>> tableData = outputStreamService.getColumnSpecificSummaryData(streamId, colId, request.getAggFunction());
             return ResponseEntity.ok(tableData);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());

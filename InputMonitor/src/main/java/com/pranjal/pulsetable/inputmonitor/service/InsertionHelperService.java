@@ -129,10 +129,11 @@ public class InsertionHelperService {
         return configuredPath;
     }
 
-    //here all one batch will be pre-processed and will be sent to summary table
-    public void updateBatchSummaryStatistics(String tableName, int streamId, List<Map<String, Object>> batchRows) {
-        if (batchRows.isEmpty()) {
-            return;
+    //summary of the rows currently in the window table, call it after eviction
+    public void updateBatchSummaryStatistics(String tableName, int streamId) {
+        // for anti sql injections
+        if (!tableName.matches("[a-zA-Z0-9_]+")) {
+            throw new IllegalArgumentException("Invalid table name");
         }
 
         String summaryTableName = tableName + "_summary";
@@ -142,74 +143,40 @@ public class InsertionHelperService {
                     " WHERE stream_id = ?";
             List<Map<String, Object>> columnInfo = jdbcTemplate.queryForList(columnQuery, streamId);
 
-            // For each column, calculate batch statistics
             for (Map<String, Object> columnData : columnInfo) {
                 String columnName = (String) columnData.get("column_name");
                 Long streamColId = (Long) columnData.get("stream_col_id");
 
-                // Get the most recent statistics
-                String lastStatsSql = "SELECT sum, avg, max, min, row_count FROM " + summaryTableName +
-                        " WHERE stream_id = ? AND column_name = ? ORDER BY id DESC LIMIT 1";
+                // column names are dynamic, so validate before putting them in the query
+                if (columnName == null || !columnName.matches("^[A-Za-z_][A-Za-z0-9_]*$")) {
+                    System.err.println("Skipping summary for invalid column name: " + columnName);
+                    continue;
+                }
+                String col = "`" + columnName + "`";
 
-                Map<String, Object> lastStats;
-                lastStats = jdbcTemplate.queryForMap(lastStatsSql, streamId, columnName);
+                String windowStatsSql = "SELECT SUM(" + col + ") AS win_sum, AVG(" + col + ") AS win_avg, " +
+                        "MIN(" + col + ") AS win_min, MAX(" + col + ") AS win_max, COUNT(" + col + ") AS win_count " +
+                        "FROM " + tableName;
+                Map<String, Object> windowStats = jdbcTemplate.queryForMap(windowStatsSql);
 
-
-                // Accumulate values for this batch
-                double batchSum = 0.0;
-                Double batchMax = null;
-                Double batchMin = null;
-                int batchCount = 0;
-
-                // Process each row in the batch
-                for (Map<String, Object> row : batchRows) {
-                    Object value = row.get(columnName);
-                    if (value instanceof Number) {
-                        double numericValue = ((Number) value).doubleValue();
-                        batchSum += numericValue;
-                        batchCount++;
-
-                        // Update batch max/min
-                        batchMax = batchMax != null ? Math.max(batchMax, numericValue) : numericValue;
-                        batchMin = batchMin != null ? Math.min(batchMin, numericValue) : numericValue;
-                    }
+                int windowCount = ((Number) windowStats.get("win_count")).intValue();
+                if (windowCount == 0) {
+                    continue;
                 }
 
-                // update takes place here
-                if (batchCount > 0) {
-                    // Get current values
-                    Double currentSum = (Double) lastStats.get("sum");
-                    Integer rowCount = (Integer) lastStats.get("row_count");
-                    Double currentMax = (Double) lastStats.get("max");
-                    Double currentMin = (Double) lastStats.get("min");
+                String insertSql = "INSERT INTO " + summaryTableName +
+                        " (stream_id, stream_col_id, column_name, sum, avg, max, min, row_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
-                    // new values are calculated here
-                    double newSum = (currentSum != null ? currentSum : 0) + batchSum;
-                    int newRowCount = (rowCount != null ? rowCount : 0) + batchCount;
-                    double newAvg = newSum / newRowCount;
-
-                    double newMax = currentMax != null ?
-                            (batchMax != null ? Math.max(currentMax, batchMax) : currentMax) :
-                            (batchMax != null ? batchMax : 0);
-
-                    double newMin = currentMin != null ?
-                            (batchMin != null ? Math.min(currentMin, batchMin) : currentMin) :
-                            (batchMin != null ? batchMin : 0);
-
-                    String insertSql = "INSERT INTO " + summaryTableName +
-                            " (stream_id, stream_col_id, column_name, sum, avg, max, min, row_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-
-                    jdbcTemplate.update(insertSql,
-                            streamId,
-                            streamColId,
-                            columnName,
-                            newSum,
-                            newAvg,
-                            newMax,
-                            newMin,
-                            newRowCount
-                    );
-                }
+                jdbcTemplate.update(insertSql,
+                        streamId,
+                        streamColId,
+                        columnName,
+                        ((Number) windowStats.get("win_sum")).doubleValue(),
+                        ((Number) windowStats.get("win_avg")).doubleValue(),
+                        ((Number) windowStats.get("win_max")).doubleValue(),
+                        ((Number) windowStats.get("win_min")).doubleValue(),
+                        windowCount
+                );
             }
         } catch (Exception e) {
             System.err.println("Error updating batch statistics: " + e.getMessage());
@@ -365,13 +332,13 @@ public class InsertionHelperService {
         System.out.println("window is truncated (row based truncation)");
 
     }
-    public void deleteRowsOlderThanTimeWindow(String tableName, int windowSizeMinutes) {
+    public void deleteRowsOlderThanTimeWindow(String tableName, int windowSizeSeconds) {
 
         String deleteSQL = "DELETE FROM " + tableName +
                 " WHERE created_at < DATE_SUB(NOW(), INTERVAL ? SECOND)";
 
-        jdbcTemplate.update(deleteSQL, windowSizeMinutes);
-        System.out.println("window is truncated (row based truncation)");
+        jdbcTemplate.update(deleteSQL, windowSizeSeconds);
+        System.out.println("window is truncated (time based truncation)");
 
     }
     public Integer getLastProcessedRowId(String tableName, int streamId) {

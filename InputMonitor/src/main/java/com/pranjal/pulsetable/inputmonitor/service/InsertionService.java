@@ -89,8 +89,8 @@ public class InsertionService {
                     currentRowCount++;
                 }
 
-                //adding rows to summary table
-                helperService.updateBatchSummaryStatistics(tableName, streamId, batchInsertedRows);
+                //summary of the window as it is now (old rows were already deleted above)
+                helperService.updateBatchSummaryStatistics(tableName, streamId);
 
                 //calling service to put entry in tick table
                 int windowStartId = batchStartIndex;
@@ -178,16 +178,16 @@ public class InsertionService {
                     currentRowCount++;
                 }
 
-                // updating summary table
-                helperService.updateBatchSummaryStatistics(tableName, streamId, batchInsertedRows);
+                // delete all rows older than windowsize in seconds
+                helperService.deleteRowsOlderThanTimeWindow(tableName, windowSize);
+
+                // updating summary table, after the delete so it only covers rows still in the window
+                helperService.updateBatchSummaryStatistics(tableName, streamId);
 
                 //calling service to put entry in tick table
                 int windowStartId = batchStartIndex;
                 int windowEndId = batchEndIndex - 1;
                 helperService.createTickEntry(tableName, streamId, windowStartId, windowEndId);
-
-                // delete all rows older than windowsize in seconds
-                helperService.deleteRowsOlderThanTimeWindow(tableName, windowSize);
 
                 currentRowCount = helperService.getCurrentRowCount(tableName);
                 rowsProcessed += rowsToInsert;

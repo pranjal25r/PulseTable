@@ -3,6 +3,7 @@ package com.pranjal.pulsetable.outputmonitor.dto;
 public class StreamColumnRequest {
     private Long streamId;
     private Long colId;
+    private String aggFunction;
 
     public Long getStreamId() {
         return streamId;
@@ -18,5 +19,13 @@ public class StreamColumnRequest {
 
     public void setColId(Long colId) {
         this.colId = colId;
+    }
+
+    public String getAggFunction() {
+        return aggFunction;
+    }
+
+    public void setAggFunction(String aggFunction) {
+        this.aggFunction = aggFunction;
     }
 }
