@@ -15,7 +15,7 @@ PulseTable is a microservice-based real-time stream aggregation platform built w
 The fastest way to run the full stack — no JDK or Node install needed:
 
 ```bash
-# 1. copy the env template and set your password
+# 1. copy the env template and set your password (both password lines must match)
 cp .env.example .env
 
 # 2. bring up all five services (MySQL + 3 Spring Boot + React/nginx)
@@ -132,7 +132,13 @@ Verify: `java -version` should report 21.
 
 ## Run the backend services
 
-Start each service in its own terminal. Use `mvn` directly (global install via `brew install maven`) — not every module ships a complete Maven wrapper.
+Start each service in its own terminal. The services read the MySQL password from the `SPRING_DATASOURCE_PASSWORD` environment variable and have no default, so export it in each terminal first (if it is missing, startup fails with MySQL `Access denied for user 'root'`):
+
+```bash
+export SPRING_DATASOURCE_PASSWORD='<your_local_password>'
+```
+
+Use `mvn` directly (global install via `brew install maven`) — not every module ships a complete Maven wrapper.
 
 ### Ingestion backend (8081)
 
@@ -242,7 +248,7 @@ STREAM_ID=1 ./run_loadtest.sh
 
 ## Configuration note
 
-The Spring Boot service configs currently contain a plaintext MySQL password for local development. **Externalize it to an environment variable** before using this outside your machine — e.g. `spring.datasource.password=${DB_PASSWORD}` — and keep `application.properties` out of version control if it holds a real secret. The Docker setup reads credentials from `.env` which is gitignored.
+No password is stored in the service configs: all three `application.properties` files use `spring.datasource.password=${SPRING_DATASOURCE_PASSWORD}` with no default. Docker Compose passes it from `.env` (gitignored; `.env.example` is the template), and for a manual run you export it yourself.
 
 ## Notes
 
