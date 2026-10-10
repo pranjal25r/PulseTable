@@ -98,20 +98,20 @@ How fast OutputMonitor can return the window (`POST /api/output/window`) while a
 
 | Users at once | Median | 95th percentile | Requests/second | Errors |
 |---|---|---|---|---|
-| 10 | 1.15 ms | 2.23 ms | 7,504 | 0 of 225,117 |
-| 50 | 4.20 ms | 15.74 ms | 8,471 | 0 of 254,153 |
-| 100 | 9.28 ms | 28.73 ms | 8,174 | 0 of 245,309 |
+| 10 | 1.35 ms | 2.45 ms | 6,532 | 0 of 195,980 |
+| 50 | 6.05 ms | 14.20 ms | 7,113 | 0 of 213,425 |
+| 100 | 11.73 ms | 32.24 ms | 7,204 | 0 of 216,210 |
 
 Hardware: MacBook Air (model identifier Mac17,3), Apple M5 chip with 10 cores, 16 GB RAM. Everything ran on that one laptop: the services in Docker (limited to 10 CPUs and 7.75 GB) and k6 beside them. Numbers will differ on other machines.
 
-These numbers were measured before OutputMonitor moved to Spring MVC. The full k6 output is in [loadtests/results/2026-10-10.txt](loadtests/results/2026-10-10.txt). To repeat it, install k6 (`brew install k6`), start feeding a stream, and run:
+The full k6 output is in [loadtests/results/2026-10-10-spring-mvc.txt](loadtests/results/2026-10-10-spring-mvc.txt). To repeat it, install k6 (`brew install k6`), start feeding a stream, and run:
 
 ```bash
 cd loadtests
 STREAM_ID=<your stream id> ./run_loadtest.sh | tee results/$(date +%F).txt
 ```
 
-Feeding speed was measured separately, in the same file: 20,000 rows at 250 rows per second took 90.8 seconds. Feeding is deliberately paced at one batch per second, so this is not a measure of how fast MySQL can insert.
+Feeding speed was measured separately, in an earlier run recorded in [loadtests/results/2026-10-10.txt](loadtests/results/2026-10-10.txt): 20,000 rows at 250 rows per second took 90.8 seconds. Feeding is deliberately paced at one batch per second, so this is not a measure of how fast MySQL can insert.
 
 ## Known limits
 
