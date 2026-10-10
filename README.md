@@ -68,28 +68,29 @@ Each module has its own multi-stage Dockerfile:
 
 ## Performance & Benchmarks
 
-Benchmarks were measured on a single local machine, with k6 and all services running on the same host; results will vary by hardware. Reproduction steps are in [Load testing](#load-testing).
+Measured on 2026-10-10 on one laptop, with k6 on the host and all services in Docker on the same machine; results will vary by hardware. The full k6 output and the ingestion timing are in [loadtests/results/2026-10-10.txt](loadtests/results/2026-10-10.txt). Reproduction steps are in [Load testing](#load-testing).
 
-### Read/aggregation latency under concurrency
-
-The windowed-aggregation read API (`POST /api/output/window` on OutputMonitor) was load-tested with [k6](https://k6.io) at rising concurrency for 30 s of sustained closed-loop load each. Results at **100 concurrent virtual users**, measured while the stream was ingesting concurrently:
-
-| Metric | Value |
+| Hardware | |
 |---|---|
-| Concurrency (VUs) | 100 |
-| Duration | 30 s sustained |
-| Median latency (p50) | **~12 ms** |
-| p95 latency | 24 ms |
-| p99 latency | 27 ms |
-| Max latency | 52 ms |
-| Throughput | **~7,500 req/s** |
-| Error rate | **0%** (0 / 225,599 requests) |
+| Model | MacBook Air (`hw.model` Mac17,3) |
+| Chip | Apple M5, 10 cores |
+| RAM | 16 GB (Docker VM limited to 10 CPUs / 7.75 GiB) |
 
-The tight tail (p95 ≈ 2× median) and zero errors at 100 clients indicate the read path holds up under concurrency rather than degrading. Each request reads the current sliding window (~100 rows) and returns the full aggregation payload.
+### Read latency under concurrency
+
+The window read API (`POST /api/output/window` on OutputMonitor) was load-tested with [k6](https://k6.io) v2.1.0 for 30 s of sustained closed-loop load at each level, while the stream was ingesting (count-based window of 100 rows, velocity 5, 8-column AQI CSV). Each request returns the full current window (100 rows).
+
+| Concurrency (VUs) | p50 | p95 | p99 | Max | Throughput | Errors |
+|---|---|---|---|---|---|---|
+| 10 | 1.15 ms | 2.23 ms | 3.63 ms | 55.73 ms | 7,504 req/s | 0% (0 / 225,117) |
+| 50 | 4.20 ms | 15.74 ms | 28.97 ms | 271.93 ms | 8,471 req/s | 0% (0 / 254,153) |
+| 100 | **9.28 ms** | 28.73 ms | 52.23 ms | 229.82 ms | **8,174 req/s** | 0% (0 / 245,309) |
+
+Throughput levels off at about 8,000 req/s from 50 clients up, and latency grows with concurrency from there (p95 is about 3x the median at 100 clients). There were no errors at any level.
 
 ### Ingestion throughput
 
-Ingesting a 20,000-row CSV took **~85 s (~235 rows/s)**. This is intentionally **paced to the window clock** (10 s windows, velocity 5) — it simulates a real-time feed rather than racing to bulk-load, so it reflects *windowed streaming throughput*, not raw insert speed.
+Ingesting a 20,000-row CSV at **velocity 250** (250 rows per one-second tick, time-based 10 s window) took **90.8 s (~220 rows/s)**. Ingestion is intentionally **paced to the window clock**: 80 ticks with a one-second pause between them is 79 s, so this is *windowed streaming throughput*, not raw insert speed. The remaining ~12 s is the per-tick work (250 single-row inserts, eviction, and the window summary queries). Velocity sets the pace: at velocity 5 the same file would take over an hour.
 
 ## Requirements
 
@@ -245,6 +246,12 @@ STREAM_ID=1 ./run_loadtest.sh
 - `med` = median latency at that concurrency (the headline number)
 - `http_reqs .../s` = throughput
 - `errors` should be ~0 for the result to count
+
+To keep a record, save the output to `loadtests/results/<date>.txt`:
+
+```bash
+STREAM_ID=1 ./run_loadtest.sh | tee results/$(date +%F).txt
+```
 
 ## Configuration note
 
