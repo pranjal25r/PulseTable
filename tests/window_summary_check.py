@@ -7,7 +7,7 @@ Run against the Docker stack (docker compose up --build):
 
 It creates fresh streams (unique names, so it can be rerun), ingests a CSV with one
 numeric column holding 1..20, and compares the summaries with what the window holds.
-Takes about 25 s. Exits non-zero if any check fails.
+Takes about half a minute. Exits non-zero if any check fails.
 
 For a manual (non-Docker) run set CSV_CONTAINER="" so the CSV is read from local disk.
 """
