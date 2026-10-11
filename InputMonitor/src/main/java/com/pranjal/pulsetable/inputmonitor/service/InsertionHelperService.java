@@ -25,6 +25,16 @@ import java.util.stream.Collectors;
 public class InsertionHelperService {
 
     private final JdbcTemplate jdbcTemplate;
+
+    // the one rule for turning a stream or column name into a table or column name
+    public static String toSafeName(String name) {
+        String safe = name == null ? "" : name.trim().toLowerCase().replace(' ', '_');
+        if (!safe.matches("^[a-z][a-z0-9_]{0,40}$")) {
+            throw new IllegalArgumentException("Names may only contain letters, digits, spaces and underscores");
+        }
+        return safe;
+    }
+
     public String getDataSourcePathById(int streamId) {
         try {
             String sql = "SELECT data_source_path FROM stream_master WHERE stream_id = ?";
@@ -76,7 +86,7 @@ public class InsertionHelperService {
             jdbcTemplate.update("INSERT INTO " + tableName + " DEFAULT VALUES");
         } else {
             String sql = "INSERT INTO " + tableName + " (" +
-                    String.join(", ", columnNames) + ") VALUES (" +
+                    columnNames.stream().map(c -> "`" + c + "`").collect(Collectors.joining(", ")) + ") VALUES (" +
                     columnNames.stream().map(c -> "?").collect(Collectors.joining(", ")) + ")";
 
             jdbcTemplate.update(sql, values.toArray());

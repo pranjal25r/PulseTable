@@ -1,5 +1,6 @@
 package com.pranjal.pulsetable.inputmonitor.controller;
 
+import com.pranjal.pulsetable.inputmonitor.service.InsertionHelperService;
 import com.pranjal.pulsetable.inputmonitor.service.InsertionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,7 +36,7 @@ public class InsertionController {
                 return ResponseEntity.badRequest().body(Map.of("error", "No table found for stream ID: " + streamId));
             }
 
-            tableName = "sdb_" + tableName;
+            tableName = "sdb_" + InsertionHelperService.toSafeName(tableName);
             Map<String, Object> streamParams = insertionService.getStreamParametersById(streamId);
             int windowSize = (Integer) streamParams.get("window_size");
             int windowVelocity = (Integer) streamParams.get("window_velocity");

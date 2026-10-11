@@ -78,6 +78,8 @@ public class FileProcessingService {
     public boolean saveStreamCol(StreamColEntity streamCol) {
         StreamMasterEntity incomingStream = streamCol.getStream();
 
+        DynamicTableService.toSafeName(streamCol.getStreamColName());
+
         if (incomingStream != null && incomingStream.getStreamId() != null) {
             int streamId = Math.toIntExact(incomingStream.getStreamId());
 
@@ -110,6 +112,7 @@ public class FileProcessingService {
     }
 
     public StreamMasterEntity savesStreamMaster(StreamMasterEntity streamMaster) {
+        DynamicTableService.toSafeName(streamMaster.getStreamName());
         System.out.println("DataSourceType: " + streamMaster.getDataSourceType());
         System.out.println("DataSourcePath: " + streamMaster.getDataSourcePath());
         return streamMasterRepository.save(streamMaster);

@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
 
 SDMS = os.environ.get("SDMS_URL", "http://localhost:8081")
@@ -44,6 +45,21 @@ def post(url, body):
 def get(url):
     with urllib.request.urlopen(url, timeout=30) as res:
         return json.loads(res.read().decode())
+
+
+def post_status(url, body):
+    try:
+        post(url, body)
+        return 200
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
+def show_tables():
+    # same list as SHOW TABLES, read through OutputMonitor so no MySQL client is needed
+    rows = post(f"{OUTPUT}/api/execute-query", {
+        "raw_query": "SELECT table_name AS t FROM information_schema.tables WHERE table_schema = DATABASE()"})
+    return sorted(row["t"] for row in rows["data"])
 
 
 def check(label, expected, actual):
@@ -131,6 +147,37 @@ def main():
     latest = column_summary(stream_id, col_id)[-1]
     check("a column configured with MAX only returns only max",
           {"max": 20.0}, {k: latest[k] for k in latest if k in ("sum", "avg", "min", "max")})
+
+    print("4. Stream name with capitals and a space")
+    name = f"Air Quality {RUN_ID}"
+    stream_id, col_id = create_stream(name, "sizetype", 5, 2, csv_path, all_aggs)
+    check(f"table created for '{name}'", True, f"sdb_air_quality_{RUN_ID}" in show_tables())
+    post(f"{INPUT}/api/insert-batched", {"stream_id": stream_id})
+    window = [row["val"] for row in post(f"{OUTPUT}/api/output/window", {"streamId": stream_id})]
+    check("window read back (16..20)", [16, 17, 18, 19, 20], sorted(window))
+    check("latest summary read back (window = 16..20)",
+          {"sum": 90.0, "avg": 18.0, "min": 16.0, "max": 20.0, "row_count": 5},
+          summary_stats(column_summary(stream_id, col_id)[-1]))
+    newest = post(f"{OUTPUT}/api/output/summary", {"streamId": stream_id})[0]
+    check("summary endpoint returns the same latest row", 90.0, newest.get("sum"))
+
+    print("5. Unsafe names are rejected")
+    tables_before = show_tables()
+    streams_before = len(get(f"{OUTPUT}/ingestion/stream-master"))
+    check("stream name 'test; DROP TABLE stream_master; --' gets HTTP 400", 400,
+          post_status(f"{SDMS}/ingestion/stream-master", {
+              "streamName": "test; DROP TABLE stream_master; --", "windowType": "sizetype", "windowSize": 5,
+              "windowVelocity": 2, "dataSourceType": "csv", "dataSourcePath": csv_path}))
+    check("no stream was saved", streams_before, len(get(f"{OUTPUT}/ingestion/stream-master")))
+    stream_id = post(f"{SDMS}/ingestion/stream-master", {
+        "streamName": f"wsc_badcol_{RUN_ID}", "windowType": "sizetype", "windowSize": 5,
+        "windowVelocity": 2, "dataSourceType": "csv", "dataSourcePath": csv_path})["streamId"]
+    check("column name 'a INT, b' gets HTTP 400", 400,
+          post_status(f"{SDMS}/ingestion/stream-col", {
+              "stream": {"streamId": stream_id}, "streamColName": "a INT, b", "streamColDataType": "integer"}))
+    check("no column was saved", [], get(f"{SDMS}/ingestion/stream-col/{stream_id}"))
+    post(f"{SDMS}/api/tables/create-table/{stream_id}", {})
+    check("new tables after the rejected names", [], sorted(set(show_tables()) - set(tables_before)))
 
     print("FAILED" if failures else "ALL CHECKS PASSED")
     sys.exit(1 if failures else 0)

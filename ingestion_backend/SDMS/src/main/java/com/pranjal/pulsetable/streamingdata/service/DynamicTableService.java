@@ -22,6 +22,15 @@ public class DynamicTableService {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    // the one rule for turning a stream or column name into a table or column name
+    public static String toSafeName(String name) {
+        String safe = name == null ? "" : name.trim().toLowerCase().replace(' ', '_');
+        if (!safe.matches("^[a-z][a-z0-9_]{0,40}$")) {
+            throw new IllegalArgumentException("Names may only contain letters, digits, spaces and underscores");
+        }
+        return safe;
+    }
+
     public void createDynamicTables() {
         // Get all stream masters
         List<StreamMasterEntity> streamMasters = streamMasterRepository.findAll();
@@ -38,7 +47,7 @@ public class DynamicTableService {
     }
 
     private void createTableForStream(StreamMasterEntity streamMaster, List<StreamColEntity> columns) {
-        String tableName = "sdb_" + streamMaster.getStreamName().toLowerCase().replaceAll("\\s+", "_");
+        String tableName = "sdb_" + toSafeName(streamMaster.getStreamName());
 
         StringBuilder sql = new StringBuilder();
         sql.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (\n");
@@ -46,10 +55,10 @@ public class DynamicTableService {
 
         for (int i = 0; i < columns.size(); i++) {
             StreamColEntity col = columns.get(i);
-            String columnName = col.getStreamColName().toLowerCase().replaceAll("\\s+", "_");
+            String columnName = toSafeName(col.getStreamColName());
             String dataType = mapToSqlDataType(col.getStreamColDataType());
 
-            sql.append("  ").append(columnName).append(" ").append(dataType);
+            sql.append("  `").append(columnName).append("` ").append(dataType);
             if (i < columns.size() - 1) {
                 sql.append(",");
             }
@@ -66,7 +75,7 @@ public class DynamicTableService {
     }
 
     private void createSummaryTableForStream(StreamMasterEntity streamMaster, List<StreamColEntity> columns) {
-        String baseTableName = "sdb_" + streamMaster.getStreamName().toLowerCase().replaceAll("\\s+", "_");
+        String baseTableName = "sdb_" + toSafeName(streamMaster.getStreamName());
         String summaryTableName = baseTableName + "_summary";
 
 
@@ -91,7 +100,7 @@ public class DynamicTableService {
         List<String> queryColumns = getQueryColumnsForStream(streamMaster.getStreamId());
 
         for (StreamColEntity column : columns) {
-            if (queryColumns.contains(column.getStreamColName().toLowerCase().replaceAll("\\s+", "_"))) {
+            if (queryColumns.contains(toSafeName(column.getStreamColName()))) {
                 String dataType = column.getStreamColDataType().toLowerCase();
                 if (dataType.equals("integer") || dataType.equals("long") ||
                         dataType.equals("double") || dataType.equals("float")) {
@@ -102,14 +111,14 @@ public class DynamicTableService {
                     jdbcTemplate.update(insertSql,
                             streamMaster.getStreamId(),
                             column.getStreamColId(),
-                            column.getStreamColName().toLowerCase().replaceAll("\\s+", "_")
+                            toSafeName(column.getStreamColName())
                     );
                 }
             }
         }
     }
     private void createTickTableForStream(StreamMasterEntity streamMaster, List<StreamColEntity> columns) {
-        String baseTableName = "sdb_" + streamMaster.getStreamName().toLowerCase().replaceAll("\\s+", "_");
+        String baseTableName = "sdb_" + toSafeName(streamMaster.getStreamName());
         String tickTableName = baseTableName + "_tick";
 
         StringBuilder sql = new StringBuilder();
@@ -131,7 +140,8 @@ public class DynamicTableService {
         String sql = "SELECT sc.column_name FROM stream_cols sc " +
                 "JOIN stream_queries sq ON sc.stream_id = sq.stream_id AND sc.stream_col_id = sq.stream_col_id " +
                 "WHERE sq.stream_id = ?";
-        return jdbcTemplate.queryForList(sql, String.class, streamId);
+        return jdbcTemplate.queryForList(sql, String.class, streamId).stream()
+                .map(DynamicTableService::toSafeName).toList();
     }
 
     private String mapToSqlDataType(String dataType) {

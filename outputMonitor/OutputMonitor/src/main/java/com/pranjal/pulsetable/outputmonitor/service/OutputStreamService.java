@@ -16,6 +16,15 @@ public class OutputStreamService {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    // the one rule for turning a stream or column name into a table or column name
+    public static String toSafeName(String name) {
+        String safe = name == null ? "" : name.trim().toLowerCase().replace(' ', '_');
+        if (!safe.matches("^[a-z][a-z0-9_]{0,40}$")) {
+            throw new IllegalArgumentException("Names may only contain letters, digits, spaces and underscores");
+        }
+        return safe;
+    }
+
     // to retrieve stream name using stream id
     public String getStreamNameById(Long streamId) {
         String sql = "SELECT stream_name FROM stream_master WHERE stream_id = ?";
@@ -26,7 +35,7 @@ public class OutputStreamService {
     public List<Map<String, Object>> getTableDataByStreamId(Long streamId) {
         String streamName = getStreamNameById(streamId);
 
-        String tableName = "sdb_" + streamName;
+        String tableName = "sdb_" + toSafeName(streamName);
 
         try {
             String sql = "SELECT * FROM " + tableName;
@@ -40,7 +49,7 @@ public class OutputStreamService {
 
     public List<Map<String, Object>> getSummaryDataByStreamId(Long streamId) {
         String streamName = getStreamNameById(streamId);
-        String tableName = "sdb_" + streamName + "_summary";
+        String tableName = "sdb_" + toSafeName(streamName) + "_summary";
         try {
             String sql = "SELECT * FROM " + tableName  +" order by time_stamp DESC LIMIT 20";
             return keepChosenAggregates(streamId, jdbcTemplate.queryForList(sql), null);
@@ -52,7 +61,7 @@ public class OutputStreamService {
     }
     public List<Map<String, Object>> getColumnSpecificSummaryData(Long streamId, Long colId, String aggFunction) {
         String streamName = getStreamNameById(streamId);
-        String tableName = "sdb_" + streamName + "_summary";
+        String tableName = "sdb_" + toSafeName(streamName) + "_summary";
         try {
             String sql = "SELECT * FROM " + tableName  +" WHERE stream_col_id=? order by id ASC";
             return keepChosenAggregates(streamId, jdbcTemplate.queryForList(sql, colId), aggFunction);

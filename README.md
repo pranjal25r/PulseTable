@@ -88,7 +88,8 @@ It feeds the numbers 1 to 20 into a stream with a window of 5 rows, 2 rows per s
 
 - every earlier second against the 5 rows that were in the window at that point;
 - a time-based window (5 seconds): the results must equal the rows actually left in the window table;
-- only the results you picked for a column are returned.
+- only the results you picked for a column are returned;
+- a stream named with capitals and a space ("Air Quality") works from creation to results, and unsafe stream and column names are rejected with HTTP 400 without creating any table.
 
 It needs only Python 3 and takes about half a minute. CI builds the three services and the web page on every push; it does not run this check.
 
@@ -117,4 +118,5 @@ Feeding speed was measured separately, in an earlier run recorded in [loadtests/
 
 - **One shared database.** All three services read and write the same MySQL database, so they cannot be deployed or scaled separately.
 - **Time windows are measured in whole seconds**, so they can hold slightly more rows than expected. In the test, a 5-second window at 2 rows per second held 10 to 12 rows.
+- **Stream and column names may only contain letters, digits, spaces and underscores.** They become table and column names, and SQL can't take those as safe parameters, so they are checked when the stream is created.
 - **One ingestion at a time.** InputMonitor has a single on/off switch for feeding, so starting or stopping one stream affects any other that is running.

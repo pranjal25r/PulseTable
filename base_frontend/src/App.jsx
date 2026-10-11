@@ -57,7 +57,7 @@ const App = () => {
         );
         console.log("Payload to be sent:", payload);
         if (!response.ok) {
-          throw new Error("Failed to submit stream info.");
+          throw new Error((await response.text()) || "Failed to submit stream info.");
         }
 
         const result = await response.json();
@@ -68,7 +68,7 @@ const App = () => {
         navigate("/step2");
       } catch (error) {
         console.error("Error submitting:", error);
-        alert("Error submitting data to backend.");
+        alert("Error submitting data to backend: " + error.message);
       }
     } else {
       alert("Please fill in all fields.");
@@ -98,7 +98,7 @@ const App = () => {
       );
 
       if (!response1.ok) {
-        throw new Error("Failed to create table.");
+        throw new Error((await response1.text()) || "Failed to create table.");
       }
 
       alert("Table created successfully!");
@@ -112,7 +112,7 @@ const App = () => {
       });
     } catch (error) {
       console.error("Error creating table:", error);
-      alert("Error creating table.");
+      alert("Error creating table: " + error.message);
     }
   };
 

@@ -23,6 +23,11 @@ public class FileController {
     @Autowired
     private FileProcessingService fileProcessingService;
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> badName(IllegalArgumentException e) {
+        return ResponseEntity.badRequest().body(e.getMessage());
+    }
+
     @CrossOrigin(origins = "http://localhost:5173")
     @PostMapping("/stream-master")
     public ResponseEntity<Map<String, Long>> createStreamMaster(@RequestBody StreamMasterEntity streamMaster) {
